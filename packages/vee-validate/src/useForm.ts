@@ -365,8 +365,16 @@ export function useForm<
         ...new Set([...keysOf(formResult.results), ...pathStates.value.map(p => p.path), ...currentErrorsPaths]),
       ].sort() as string[];
 
+      // errors collector for field paths
+      const fieldErrors = new Map<Path<TValues> | PathState, string[]>();
+      // collects given error messages for specific path (allowed to be called multiple times for each path)
+      function _setFieldError(field: Path<TValues> | PathState, message: string | undefined | string[]) {
+        const cur = fieldErrors.get(field) || ([] as string[]);
+        fieldErrors.set(field, [...cur, ...normalizeErrorItem(message)]);
+      }
+
       // aggregates the paths into a single result object while applying the results on the fields
-      return paths.reduce(
+      const result = paths.reduce(
         (validation, _path) => {
           const path = _path as Path<TValues>;
           const pathState = findPathState(path) || findHoistedPath(path);
@@ -387,7 +395,7 @@ export function useForm<
 
           // field not rendered
           if (!pathState) {
-            setFieldError(path, messages);
+            _setFieldError(path, messages);
 
             return validation;
           }
@@ -402,12 +410,17 @@ export function useForm<
             return validation;
           }
 
-          setFieldError(pathState, fieldResult.errors);
+          _setFieldError(pathState, fieldResult.errors);
 
           return validation;
         },
         { valid: formResult.valid, results: {}, errors: {} } as FormValidationResult<TValues>,
       );
+
+      // set collected field errors
+      fieldErrors.forEach((value, key) => setFieldError(key, value));
+
+      return result;
     },
   );
 
